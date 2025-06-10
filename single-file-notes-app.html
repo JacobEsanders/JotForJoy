@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JotForJoy - Notes & Idea Vault</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const NotesVaultApp = () => {
+            const [notes, setNotes] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedTag, setSelectedTag] = useState('');
+            const [isCreating, setIsCreating] = useState(false);
+            const [editingNote, setEditingNote] = useState(null);
+            const [newNote, setNewNote] = useState({
+                title: '',
+                content: '',
+                tags: '',
+                type: 'note'
+            });
+
+            // Load notes from localStorage on component mount
+            useEffect(() => {
+                const savedNotes = JSON.parse(localStorage.getItem('jotForJoyNotes') || '[]');
+                setNotes(savedNotes);
+            }, []);
+
+            // Save notes to localStorage whenever notes change
+            useEffect(() => {
+                localStorage.setItem('jotForJoyNotes', JSON.stringify(notes));
+            }, [notes]);
+
+            const handleCreateNote = () => {
+                if (newNote.title.trim() && newNote.content.trim()) {
+                    const note = {
+                        id: Date.now(),
+                        ...newNote,
+                        tags: newNote.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    setNotes([note, ...notes]);
+                    setNewNote({ title: '', content: '', tags: '', type: 'note' });
+                    setIsCreating(false);
+                }
+            };
+
+            const handleEditNote = (note) => {
+                setEditingNote(note);
+                setNewNote({
+                    title: note.title,
+                    content: note.content,
+                    tags: note.tags.join(', '),
+                    type: note.type
+                });
+                setIsCreating(true);
+            };
+
+            const handleUpdateNote = () => {
+                if (newNote.title.trim() && newNote.content.trim()) {
+                    const updatedNotes = notes.map(note =>
+                        note.id === editingNote.id
+                            ? {
+                                ...note,
+                                title: newNote.title,
+                                content: newNote.content,
+                                tags: newNote.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+                                type: newNote.type,
+                                updatedAt: new Date().toISOString()
+                            }
+                            : note
+                    );
+                    setNotes(updatedNotes);
+                    setNewNote({ title: '', content: '', tags: '', type: 'note' });
+                    setIsCreating(false);
+                    setEditingNote(null);
+                }
+            };
+
+            const handleDeleteNote = (id) => {
+                if (confirm('Are you sure you want to delete this note?')) {
+                    setNotes(notes.filter(note => note.id !== id));
+                }
+            };
+
+            const handleCancel = () => {
+                setIsCreating(false);
+                setEditingNote(null);
+                setNewNote({ title: '', content: '', tags: '', type: 'note' });
+            };
+
+            const filteredNotes = useMemo(() => {
+                return notes.filter(note => {
+                    const matchesSearch = 
+                        note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        note.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+                    
+                    const matchesTag = selectedTag === '' || note.tags.includes(selectedTag);
+                    
+                    return matchesSearch && matchesTag;
+                });
+            }, [notes, searchTerm, selectedTag]);
+
+            const allTags = useMemo(() => {
+                const tagSet = new Set();
+                notes.forEach(note => {
+                    note.tags.forEach(tag => tagSet.add(tag));
+                });
+                return Array.from(tagSet).sort();
+            }, [notes]);
+
+            const getTypeIcon = (type) => {
+                switch (type) {
+                    case 'idea': return React.createElement('span', { className: 'w-4 h-4 text-center' }, '💡');
+                    case 'journal': return React.createElement('span', { className: 'w-4 h-4 text-center' }, '📖');
+                    default: return React.createElement('span', { className: 'w-4 h-4 text-center' }, '📝');
+                }
+            };
+
+            const getTypeColor = (type) => {
+                switch (type) {
+                    case 'idea': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                    case 'journal': return 'bg-purple-100 text-purple-800 border-purple-200';
+                    default: return 'bg-blue-100 text-blue-800 border-blue-200';
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+                    <div className="max-w-7xl mx-auto p-6">
+                        {/* Header */}
+                        <div className="mb-8">
+                            <h1 className="text-4xl font-bold text-slate-800 mb-2 flex items-center gap-3">
+                                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white">
+                                    <span className="text-2xl">📝</span>
+                                </div>
+                                JotForJoy
+                            </h1>
+                            <p className="text-slate-600">Capture your thoughts, ideas, and insights in one organized place</p>
+                        </div>
+
+                        {/* Search and Filter Bar */}
+                        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex-1 relative">
+                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg">🔍</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Search notes, content, or tags..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                </div>
+                                <div className="flex gap-3">
+                                    <select
+                                        value={selectedTag}
+                                        onChange={(e) => setSelectedTag(e.target.value)}
+                                        className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="">All Tags</option>
+                                        {allTags.map(tag => (
+                                            <option key={tag} value={tag}>{tag}</option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={() => setIsCreating(true)}
+                                        className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
+                                    >
+                                        <span className="text-lg">➕</span>
+                                        New Note
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Create/Edit Note Form */}
+                        {isCreating && (
+                            <div className="bg-white rounded-lg shadow-lg p-6 mb-6 border-l-4 border-blue-500">
+                                <h2 className="text-2xl font-semibold mb-4 text-slate-800">
+                                    {editingNote ? 'Edit Note' : 'Create New Note'}
+                                </h2>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Note title..."
+                                            value={newNote.title}
+                                            onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                                            className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        />
+                                        <select
+                                            value={newNote.type}
+                                            onChange={(e) => setNewNote({ ...newNote, type: e.target.value })}
+                                            className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="note">Note</option>
+                                            <option value="idea">Idea</option>
+                                            <option value="journal">Journal Entry</option>
+                                        </select>
+                                    </div>
+                                    <textarea
+                                        placeholder="Write your note content here..."
+                                        value={newNote.content}
+                                        onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                                        rows={6}
+                                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Tags (comma-separated)..."
+                                        value={newNote.tags}
+                                        onChange={(e) => setNewNote({ ...newNote, tags: e.target.value })}
+                                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={editingNote ? handleUpdateNote : handleCreateNote}
+                                            className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                                        >
+                                            {editingNote ? 'Update Note' : 'Save Note'}
+                                        </button>
+                                        <button
+                                            onClick={handleCancel}
+                                            className="bg-slate-500 text-white px-6 py-2 rounded-lg hover:bg-slate-600 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Notes Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredNotes.length === 0 ? (
+                                <div className="col-span-full text-center py-12">
+                                    <div className="text-6xl mb-4">📝</div>
+                                    <h3 className="text-xl font-medium text-slate-600 mb-2">
+                                        {notes.length === 0 ? 'No notes yet' : 'No notes match your search'}
+                                    </h3>
+                                    <p className="text-slate-500">
+                                        {notes.length === 0 
+                                            ? 'Create your first note to get started!'
+                                            : 'Try adjusting your search or filter criteria'}
+                                    </p>
+                                </div>
+                            ) : (
+                                filteredNotes.map(note => (
+                                    <div key={note.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
+                                        <div className="p-6">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(note.type)}`}>
+                                                    {getTypeIcon(note.type)}
+                                                    {note.type}
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => handleEditNote(note)}
+                                                        className="p-1 text-slate-400 hover:text-blue-500 transition-colors"
+                                                        title="Edit note"
+                                                    >
+                                                        <span className="text-sm">✏️</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteNote(note.id)}
+                                                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                                        title="Delete note"
+                                                    >
+                                                        <span className="text-sm">🗑️</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            <h3 className="font-semibold text-lg text-slate-800 mb-2 line-clamp-2">
+                                                {note.title}
+                                            </h3>
+                                            
+                                            <p className="text-slate-600 text-sm mb-4 line-clamp-3">
+                                                {note.content}
+                                            </p>
+                                            
+                                            {note.tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mb-3">
+                                                    {note.tags.map(tag => (
+                                                        <span
+                                                            key={tag}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full cursor-pointer hover:bg-slate-200 transition-colors"
+                                                            onClick={() => setSelectedTag(tag)}
+                                                        >
+                                                            <span className="text-xs">#</span>
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            
+                                            <div className="flex items-center text-xs text-slate-500">
+                                                <span className="mr-1">📅</span>
+                                                {new Date(note.createdAt).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Stats */}
+                        {notes.length > 0 && (
+                            <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-blue-600">{notes.length}</div>
+                                        <div className="text-sm text-slate-600">Total Notes</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-yellow-600">
+                                            {notes.filter(n => n.type === 'idea').length}
+                                        </div>
+                                        <div className="text-sm text-slate-600">Ideas</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-purple-600">
+                                            {notes.filter(n => n.type === 'journal').length}
+                                        </div>
+                                        <div className="text-sm text-slate-600">Journal Entries</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-green-600">{allTags.length}</div>
+                                        <div className="text-sm text-slate-600">Unique Tags</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(React.createElement(NotesVaultApp), document.getElementById('root'));
+    </script>
+</body>
+</html>
